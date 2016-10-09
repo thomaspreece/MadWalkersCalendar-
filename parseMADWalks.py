@@ -120,7 +120,7 @@ def get_walks():
             if "Public Transport" in walk_brief:
                 walk_dict["transport"] = "Public"
             else:
-	            walk_dict["transport"] = "Direct"
+                walk_dict["transport"] = "Direct"
         
             walk_full = ("".join(walk.xpath(".//table[@class='walkTableGD'][1]/tr[2]/td[2]//text()"))).replace("\t","")
         
@@ -138,26 +138,41 @@ def get_walks():
             try:
                 walk_length = walk.xpath(".//p[@class='pIconPanel']/text()")[0]
             except:
-	            walk_length = "TBD"
+                walk_length = "TBD"
         
             walk_dict["length"] = walk_length
         
             try:
                 walk_ascent = walk.xpath(".//p[@class='pIconAscent']/text()")[0]
             except:
-	            walk_ascent = "TBD"
+                walk_ascent = "TBD"
         
             walk_dict["ascent"] = walk_ascent
         
             try:
-	            time = walk.xpath(".//td[@class='tdMeetTm']/p/text()")[0]
-	            first_step = "".join(walk.xpath(".//td[@class='tdMeetDt']")[0].xpath(".//text()"))
-	            walk_start = time+": "+first_step
+                time = walk.xpath(".//td[@class='tdMeetTm']/p/text()")[0]
+                first_step = "".join(walk.xpath(".//td[@class='tdMeetDt']")[0].xpath(".//text()"))
+                walk_start = time+": "+first_step
             except:
-	            walk_start = "TBD"
-        
-            walk_dict["start"] = walk_start
-            
+                walk_start = "TBD"
+       
+            walk_dict["start"] = walk_start.encode('utf-8')
+
+            step_text = ""
+            try:
+                single_step = walk.xpath(".//table[@class='walkTableGD'][2]/tr[2]/td[2]/table/tr")
+                
+
+                steps = walk.xpath(".//td[@class='tdMeetDt']")
+
+                for i in range(len(single_step)):
+                    step_text += "".join(single_step[i].xpath(".//td[@class='tdMeetTm']//text()"))+"\n"
+                    step_text += "".join(single_step[i].xpath(".//td[@class='tdMeetDt']//text()"))+"\n"
+
+            except:
+               step_text = ""
+
+            walk_dict["steps"] = step_text.encode('utf-8')
    
             if not walk_dict['web_id'] in all_walks_dict:
                 new_walk(walk_dict,service)
@@ -166,15 +181,15 @@ def get_walks():
             else:
                 walk_dict['calendar_id'] = all_walks_dict[walk_dict["web_id"]]['calendar_id']
                 if not all_walks_dict[walk_dict["web_id"]] == walk_dict:
-	    	        changed_walk(walk_dict,service)
-	    	        all_walks_dict[walk_dict["web_id"]] = walk_dict    
+                    changed_walk(walk_dict,service)
+                    all_walks_dict[walk_dict["web_id"]] = walk_dict    
     except:
         with open("walks.pickle", "wb") as output:
-	        pickle.dump(all_walks_dict, output, pickle.HIGHEST_PROTOCOL)       
+            pickle.dump(all_walks_dict, output, pickle.HIGHEST_PROTOCOL)       
         raise 
 
     with open("walks.pickle", "wb") as output:
-	    pickle.dump(all_walks_dict, output, pickle.HIGHEST_PROTOCOL)
+        pickle.dump(all_walks_dict, output, pickle.HIGHEST_PROTOCOL)
 
 
 def get_event(walk_dict):
@@ -182,7 +197,7 @@ def get_event(walk_dict):
     event = {
         'summary': 'WALK: ('+str(walk_dict['length'])+", "+str(walk_dict["ascent"])+", "+str(walk_dict['transport'])+") "+str(walk_dict['title']),
         'location': walk_dict['start'],
-        'description': 'Length: '+str(walk_dict["length"])+' \nAscent: '+str(walk_dict["ascent"])+" \nTransport: "+str(walk_dict["transport"])+"\n"+str(walk_dict["full"])+"\n"+str(walk_dict["special"]),
+        'description': 'Length: '+str(walk_dict["length"])+' \nAscent: '+str(walk_dict["ascent"])+" \nTransport: "+str(walk_dict["transport"])+"\n"+str(walk_dict["full"])+"\n"+str(walk_dict["steps"])+"\n"+str(walk_dict["special"]),
         'start': {
             'date': str(now.year)+'-'+str(walk_dict["month"])+'-'+str(walk_dict["day"]),
         },
