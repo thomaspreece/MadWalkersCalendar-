@@ -51,7 +51,7 @@ def get_credentials():
     if not os.path.exists(credential_dir):
         os.makedirs(credential_dir)
     credential_path = os.path.join(credential_dir,
-                                   'MADWalkers-calendar-python.json')
+                                   'MADWalkers-calendar-email-python.json')
 
     store = Storage(credential_path)
     credentials = store.get()
@@ -146,10 +146,10 @@ def get_walks():
             
             today = datetime.date.today()
 
-            if today.month > 9 and walk_month < 5:
-                walk_year = today.year+1
+            if int(today.month) > 9 and int(walk_month) < 5:
+                walk_year = int(today.year)+1
             else:
-                walk_year = today.year
+                walk_year = int(today.year)
             
             walk_dict["day"] = int(walk_day)
             walk_dict["month"]= int(walk_month)
@@ -258,6 +258,7 @@ def get_event(walk_dict):
 
 def new_walk(walk_dict,service):
     print("Adding NEW Walk")
+    print(walk_dict["title"])
     event_dict = get_event(walk_dict)
     event = service.events().insert(calendarId=CALENDAR, body=event_dict).execute()
     walk_dict['calendar_id'] = event.get("id")
