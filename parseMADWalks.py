@@ -17,12 +17,6 @@ import base64
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
-try:
-    import argparse
-    flags = argparse.ArgumentParser(parents=[tools.argparser]).parse_args()
-except ImportError:
-    flags = None
-
 # If modifying these scopes, delete your previously saved credentials
 # at ~/.credentials/MADWalkers-calendar-python.json
 SEND_EMAILS = True
@@ -30,14 +24,14 @@ EMAIL_ADDRESS = 'thomaspreece10@gmail.com'
 
 CLIENT_SECRET_FILE = 'client_secret.json'
 APPLICATION_NAME = 'MADWalkersCalendar'
-CALENDAR = "iseo90qh8hj6o5lrj6mhrr0srg@group.calendar.google.com" 
+CALENDAR = "iseo90qh8hj6o5lrj6mhrr0srg@group.calendar.google.com"
 
 if SEND_EMAILS == True:
 	SCOPES = 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/gmail.send'
 else:
 	SCOPES = 'https://www.googleapis.com/auth/calendar'
 
-def get_credentials():
+def get_credentials(offline=True):
     """Gets valid user credentials from storage.
 
     If nothing has been stored, or if the stored credentials are invalid,
@@ -46,25 +40,27 @@ def get_credentials():
     Returns:
         Credentials, the obtained credential.
     """
-    home_dir = os.path.expanduser('~')
-    credential_dir = os.path.join(home_dir, '.credentials')
-    if not os.path.exists(credential_dir):
-        os.makedirs(credential_dir)
-    credential_path = os.path.join(credential_dir,
-                                   'MADWalkers-calendar-email-python.json')
+    credential_path = 'MADWalkers-credentials.json'
 
     store = Storage(credential_path)
     credentials = store.get()
-    if not credentials or credentials.invalid:
-        flow = client.flow_from_clientsecrets(CLIENT_SECRET_FILE, SCOPES)
-        flow.user_agent = APPLICATION_NAME
-        if flags:
-            credentials = tools.run_flow(flow, store, flags)
-        else: # Needed only for compatibility with Python 2.6
-            credentials = tools.run(flow, store)
-        print('Storing credentials to ' + credential_path)
-    return credentials
-
+    if offline == True:
+        if not credentials or credentials.invalid:
+            raise ValueError("Credentials Not Found. Run authenticate.py to generate them.")
+        else:
+            return credentials
+    else:
+        if not credentials or credentials.invalid:
+            flow = client.flow_from_clientsecrets(CLIENT_SECRET_FILE, SCOPES)
+            flow.user_agent = APPLICATION_NAME
+            flow.params['access_type'] = 'offline'         # offline access
+            flow.params['include_granted_scopes'] = "true"   # incremental auth
+            if flags:
+                credentials = tools.run_flow(flow, store, flags)
+            else: # Needed only for compatibility with Python 2.6
+                credentials = tools.run(flow, store)
+            print('Storing credentials to ' + credential_path)
+        return credentials
 
 def get_colours():
     credentials = get_credentials()
@@ -118,9 +114,9 @@ def get_walks():
 
     page = requests.get("http://madwalkers.org.uk/walks/")
     tree = html.fromstring(page.content)
-    
+
     walks_xpath = "/html/body/div[1]/table/tr[2]/td[3]/div[1]/div[position()>1]"
-    
+
     walks = tree.xpath(walks_xpath)
     walks_number = tree.xpath("count("+walks_xpath+")")
 
@@ -129,28 +125,28 @@ def get_walks():
 	        all_walks_dict = pickle.load(input)
     except:
         all_walks_dict = {}
-    
+
     try:
         for i in range(int(walks_number)):
             walk = walks[i]
             walk_dict = {}
-        
+
             walk_id = walk.xpath("@id")[0]
             walk_dict["web_id"] = walk_id
             walk_dict["web_link"] = "http://www.madwalkers.org.uk/walks/walk.php?id="+walk_id[5:]
             walk_dict["colour_id"] = 3
-        
+
             walk_day = walk.xpath(".//p[@class='pIconDay']/text()")[0]
             walk_month_node = walk.xpath(".//td[starts-with(@class, 'imgMon')]")
             walk_month = walk_month_node[0].xpath("@class")[0].replace("imgMon","")
-            
+
             today = datetime.date.today()
 
             if int(today.month) > 9 and int(walk_month) < 5:
                 walk_year = int(today.year)+1
             else:
                 walk_year = int(today.year)
-            
+
             walk_dict["day"] = int(walk_day)
             walk_dict["month"]= int(walk_month)
             walk_dict["year"] = int(walk_year)
@@ -161,55 +157,55 @@ def get_walks():
 
             walk_title = walk.xpath(".//a[@class='pWalkTitle']/text()")[0]
             walk_dict["title"] = walk_title
-        
+
             walk_brief = "".join(walk.xpath(".//p[@class='pHdr']/text()"))
             walk_dict["brief"] = walk_brief.encode('utf-8')
-        
+
             if "Public Transport" in walk_brief:
                 walk_dict["transport"] = "Public"
             else:
                 walk_dict["transport"] = "Direct"
-        
+
             walk_full = ("".join(walk.xpath(".//table[@class='walkTableGD'][1]/tr[2]/td[2]//text()"))).replace("\t","")
-        
+
             walk_dict["full"] = walk_full.encode('utf-8')
 
-            try:    
+            try:
                 walk_special_notes = walk.xpath(".//span[contains(@style,'color:#ff0000')]//text()")
                 walk_special_notes = " ".join(walk_special_notes)
             except:
-                walk_special_notes = "" 
- 
-            walk_dict["special"] = walk_special_notes.encode('utf-8')    
-                
-        
+                walk_special_notes = ""
+
+            walk_dict["special"] = walk_special_notes.encode('utf-8')
+
+
             try:
                 walk_length = walk.xpath(".//p[@class='pIconPanel']/text()")[0]
             except:
                 walk_length = "TBD"
-        
+
             walk_dict["length"] = walk_length
-        
+
             try:
                 walk_ascent = walk.xpath(".//p[@class='pIconAscent']/text()")[0]
             except:
                 walk_ascent = "TBD"
-        
+
             walk_dict["ascent"] = walk_ascent
-        
+
             try:
                 time = walk.xpath(".//td[@class='tdMeetTm']/p/text()")[0]
                 first_step = "".join(walk.xpath(".//td[@class='tdMeetDt']")[0].xpath(".//text()"))
                 walk_start = time+": "+first_step
             except:
                 walk_start = "TBD"
-       
+
             walk_dict["start"] = walk_start.encode('utf-8')
 
             step_text = ""
             try:
                 single_step = walk.xpath(".//table[@class='walkTableGD'][2]/tr[2]/td[2]/table/tr")
-                
+
 
                 steps = walk.xpath(".//td[@class='tdMeetDt']")
 
@@ -221,7 +217,7 @@ def get_walks():
                step_text = ""
 
             walk_dict["steps"] = step_text.encode('utf-8')
-   
+
             if not walk_dict['web_id'] in all_walks_dict:
                 new_walk(walk_dict,service)
                 all_walks_dict[walk_dict["web_id"]] = walk_dict
@@ -230,11 +226,11 @@ def get_walks():
                 walk_dict['calendar_id'] = all_walks_dict[walk_dict["web_id"]]['calendar_id']
                 if not all_walks_dict[walk_dict["web_id"]] == walk_dict:
                     changed_walk(walk_dict,service)
-                    all_walks_dict[walk_dict["web_id"]] = walk_dict    
+                    all_walks_dict[walk_dict["web_id"]] = walk_dict
     except:
         with open("walks.pickle", "wb") as output:
-            pickle.dump(all_walks_dict, output, pickle.HIGHEST_PROTOCOL)       
-        raise 
+            pickle.dump(all_walks_dict, output, pickle.HIGHEST_PROTOCOL)
+        raise
 
     with open("walks.pickle", "wb") as output:
         pickle.dump(all_walks_dict, output, pickle.HIGHEST_PROTOCOL)
@@ -264,12 +260,12 @@ def new_walk(walk_dict,service):
     walk_dict['calendar_id'] = event.get("id")
     if (SEND_EMAILS == True and walk_dict["special"] != "") or (SEND_EMAILS == True and walk_dict["days_to_walk"] < 7 ):
         email_walk(walk_dict,"NEW")
-    return 
+    return
 
 def email_walk(walk_dict,new_or_update):
     subject = new_or_update+": "+walk_dict["title"]
-    msg = 'Link: '+walk_dict["web_link"]+'\nDate:'+str(walk_dict["day"])+'/'+str(walk_dict["month"])+'/'+str(walk_dict["year"])+'\n'+"Brief: "+walk_dict["brief"]+'\nLength: '+str(walk_dict["length"])+' \nAscent: '+str(walk_dict["ascent"])+" \nTransport: "+str(walk_dict["transport"])+"\n"+str(walk_dict["full"])+"\n"+str(walk_dict["steps"])+"\n"+str(walk_dict["special"])   
-    SendMessage(EMAIL_ADDRESS, EMAIL_ADDRESS , subject, msg)   
+    msg = 'Link: '+walk_dict["web_link"]+'\nDate:'+str(walk_dict["day"])+'/'+str(walk_dict["month"])+'/'+str(walk_dict["year"])+'\n'+"Brief: "+walk_dict["brief"]+'\nLength: '+str(walk_dict["length"])+' \nAscent: '+str(walk_dict["ascent"])+" \nTransport: "+str(walk_dict["transport"])+"\n"+str(walk_dict["full"])+"\n"+str(walk_dict["steps"])+"\n"+str(walk_dict["special"])
+    SendMessage(EMAIL_ADDRESS, EMAIL_ADDRESS , subject, msg)
 
 def changed_walk(walk_dict,service):
     print("Updating CHANGED walk")
@@ -278,9 +274,9 @@ def changed_walk(walk_dict,service):
     event = service.events().update(calendarId=CALENDAR, eventId=walk_dict['calendar_id'], body=event_dict).execute()
     if (SEND_EMAILS == True and walk_dict["special"] != "") or (SEND_EMAILS == True and walk_dict["days_to_walk"] < 7 ):
         email_walk(walk_dict,"UPDATE")
-    return 
+    return
 
 
 if __name__ == "__main__":
     #get_colours()
-    get_walks()    	
+    get_walks()
