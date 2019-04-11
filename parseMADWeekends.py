@@ -110,136 +110,52 @@ def CreateMessage(sender, to, subject, msgPlain):
     return {'raw': base64.urlsafe_b64encode(msg.as_string().encode()).decode()}
 
 
-def get_walks():
+def get_weekends():
     credentials = get_credentials()
     http = credentials.authorize(httplib2.Http())
     service = discovery.build('calendar', 'v3', http=http)
 
 
 
-    page = requests.get("https://www.madwalkers.org.uk/walks/")
+    page = requests.get("https://www.madwalkers.org.uk/weekends/")
     tree = html.fromstring(page.content)
     
-    walks_xpath = "/html/body/div[7]/div[1]/div[2]/div[position()>1]"
+    weekends_xpath = "/html/body/div[7]/div[1]/div[2]/div|/html/body/div[7]/div[1]/div[2]/h3"
     
-    walks = tree.xpath(walks_xpath)
-    walks_number = tree.xpath("count("+walks_xpath+")")
+    weekends = tree.xpath(weekends_xpath)
+    weekends_number = tree.xpath("count("+weekends_xpath+")")
 
     try:
-        with open("walks.pickle","rb") as input:
-	        all_walks_dict = pickle.load(input)
+        with open("weekends.pickle","rb") as input:
+	        all_weekends_dict = pickle.load(input)
     except:
-        all_walks_dict = {}
+        all_weekends_dict = {}
     
-    try:
-        for i in range(int(walks_number)):
-            walk = walks[i]
-            walk_dict = {}
-        
-            walk_id = walk.xpath("@id")[0]
-            walk_dict["web_id"] = walk_id
-            walk_dict["web_link"] = "https://www.madwalkers.org.uk/walks/walk.php?id="+walk_id[5:]
-            walk_dict["colour_id"] = 3
-        
-            walk_day = walk.xpath(".//p[@class='pIconDay']/text()")[0]
-            walk_month_node = walk.xpath(".//div[starts-with(@class, 'imgMon')]")
-            walk_month = walk_month_node[0].xpath("@class")[0].replace("imgMon","").replace("walk-month","")
+    try: 
+        weekend_title = ""
+        weekends_dict = {}
+        for i in range(int(weekends_number)):
+            weekend = weekends[i]
             
-            today = datetime.date.today()
-
-            if int(today.month) > 9 and int(walk_month) < 5:
-                walk_year = int(today.year)+1
-            else:
-                walk_year = int(today.year)
+			
+            if(weekend.tag == "h3"):
+                weekend_title = weekend.xpath(".//text()")[0]
+                weekends_dict[weekend_title] = {"title": weekend_title}
+            else: 
+                row = weekend.xpath("./div[1]/p//text()")[0]
+                rowContent = weekend.xpath("./div[2]/p//text()")[0]
+                if(not "text" in weekends_dict[weekend_title]):
+                    weekends_dict[weekend_title]["text"] = ""
+                weekends_dict[weekend_title]["text"] = weekends_dict[weekend_title]["text"] + row + " " + rowContent
             
-            walk_dict["day"] = int(walk_day)
-            walk_dict["month"]= int(walk_month)
-            walk_dict["year"] = int(walk_year)
-
-            walk_date = datetime.date(walk_dict["year"],walk_dict["month"],walk_dict["day"])
-
-            walk_dict["days_to_walk"] = (walk_date-today).days
-
-            walk_title = walk.xpath(".//a[@class='pWalkTitle']/text()")[0]
-            walk_dict["title"] = walk_title
-        
-            walk_brief = "".join(walk.xpath(".//p[@class='pHdr']/text()"))
-            walk_dict["brief"] = walk_brief.encode('utf-8')
-        
-            if "Public Transport" in walk_brief:
-                walk_dict["transport"] = "Public"
-            else:
-                walk_dict["transport"] = "Direct"
-        
-            walk_full = ("".join(walk.xpath(".//div[@class='walk-info']/div[position()>2]//text()"))).replace("\t","")
-        
-            walk_dict["full"] = walk_full.encode('utf-8')
-
-            try:    
-                walk_special_notes = walk.xpath(".//span[contains(@style,'color:#ff0000')]//text()")
-                walk_special_notes = " ".join(walk_special_notes)
-            except:
-                walk_special_notes = "" 
- 
-            walk_dict["special"] = walk_special_notes.encode('utf-8')    
-                
-        
-            try:
-                walk_length = walk.xpath(".//p[@class='pIconPanel']/text()")[0]
-            except:
-                walk_length = "TBD"
-        
-            walk_dict["length"] = walk_length
-        
-            try:
-                walk_ascent = walk.xpath(".//p[@class='pIconAscent']/text()")[0]
-            except:
-                walk_ascent = "TBD"
-        
-            walk_dict["ascent"] = walk_ascent
-        
-            try:
-                #time = walk.xpath(".//td[@class='tdMeetTm']/p/text()")[0]
-                walk_start = " ".join(walk.xpath(".//div[@class='walk-info']/div[position()=(last()-1)]/div[1]/div[2]/div[1]/p//text()"))
-				
-                #first_step = "".join(walk.xpath(".//td[@class='tdMeetDt']")[0].xpath(".//text()"))
-                #walk_start = time+": "+first_step
-            except:
-                walk_start = "TBD"
-       
-            walk_dict["start"] = walk_start.encode('utf-8')
-#
-#            step_text = ""
-#            try:
-#                single_step = walk.xpath(".//table[@class='walkTableGD'][2]/tr[2]/td[2]/table/tr")
-#                
-#
-#                steps = walk.xpath(".//td[@class='tdMeetDt']")
-#
-#                for i in range(len(single_step)):
-#                    step_text += "".join(single_step[i].xpath(".//td[@class='tdMeetTm']//text()"))+"\n"
-#                    step_text += "".join(single_step[i].xpath(".//td[@class='tdMeetDt']//text()"))+"\n"
-#
-#            except:
-#               step_text = ""
-#
-            walk_dict["steps"] = "" #step_text.encode('utf-8')
-            if not walk_dict['web_id'] in all_walks_dict:
-                new_walk(walk_dict,service)
-                all_walks_dict[walk_dict["web_id"]] = walk_dict
-                print(walk_dict['calendar_id'])
-            else:
-                walk_dict['calendar_id'] = all_walks_dict[walk_dict["web_id"]]['calendar_id']
-                if not all_walks_dict[walk_dict["web_id"]] == walk_dict:
-                    changed_walk(walk_dict,service)
-                    all_walks_dict[walk_dict["web_id"]] = walk_dict
+        print(weekends_dict)
     except:
-        with open("walks.pickle", "wb") as output:
-            pickle.dump(all_walks_dict, output, pickle.HIGHEST_PROTOCOL)       
+        with open("weekends.pickle", "wb") as output:
+            pickle.dump(all_weekends_dict, output, pickle.HIGHEST_PROTOCOL)       
         raise 
 
-    with open("walks.pickle", "wb") as output:
-        pickle.dump(all_walks_dict, output, pickle.HIGHEST_PROTOCOL)
+    with open("weekends.pickle", "wb") as output:
+        pickle.dump(all_weekends_dict, output, pickle.HIGHEST_PROTOCOL)
 
 
 def get_event(walk_dict):
@@ -286,4 +202,4 @@ def changed_walk(walk_dict,service):
 
 if __name__ == "__main__":
     #get_colours()
-    get_walks()    	
+    get_weekends()    	
